@@ -45,19 +45,21 @@
 
 typedef struct FBufferStruct {
     unsigned long initial_length;
-    char *ptr;
+    VALUE owner;
+    VALUE str;
     unsigned long len;
     unsigned long capa;
 } FBuffer;
 
+/* Keep one byte for terminator */
 #define FBUFFER_INITIAL_LENGTH_DEFAULT 1024
 
-#define FBUFFER_PTR(fb) (fb->ptr)
+#define FBUFFER_PTR(fb) (RSTRING_PTR(fb->str))
 #define FBUFFER_LEN(fb) (fb->len)
 #define FBUFFER_CAPA(fb) (fb->capa)
 #define FBUFFER_PAIR(fb) FBUFFER_PTR(fb), FBUFFER_LEN(fb)
 
-static FBuffer *fbuffer_alloc(unsigned long initial_length);
+static FBuffer *fbuffer_alloc(VALUE owner, unsigned long initial_length);
 static void fbuffer_free(FBuffer *fb);
 static void fbuffer_clear(FBuffer *fb);
 static void fbuffer_append(FBuffer *fb, const char *newstr, unsigned long len);
@@ -66,45 +68,50 @@ static void fbuffer_append_long(FBuffer *fb, long number);
 #endif
 static void fbuffer_append_char(FBuffer *fb, char newchr);
 #ifdef JSON_GENERATOR
-static FBuffer *fbuffer_dup(FBuffer *fb);
+static FBuffer *fbuffer_dup(VALUE owner, FBuffer *fb);
 static VALUE fbuffer_to_s(FBuffer *fb);
 #endif
 
-static FBuffer *fbuffer_alloc(unsigned long initial_length)
+static FBuffer *fbuffer_alloc(VALUE owner, unsigned long initial_length)
 {
     FBuffer *fb;
     if (initial_length <= 0) initial_length = FBUFFER_INITIAL_LENGTH_DEFAULT;
     fb = ALLOC(FBuffer);
     memset((void *) fb, 0, sizeof(FBuffer));
     fb->initial_length = initial_length;
+    fb->owner = owner;
     return fb;
+}
+
+static void fbuffer_mark(FBuffer *fb)
+{
+    rb_gc_mark(fb->owner);
+    rb_gc_mark(fb->str);
 }
 
 static void fbuffer_free(FBuffer *fb)
 {
-    if (fb->ptr) ruby_xfree(fb->ptr);
     ruby_xfree(fb);
 }
 
 static void fbuffer_clear(FBuffer *fb)
 {
+    if (RTEST(fb->str)) rb_str_set_len(fb->str, 0);
     fb->len = 0;
 }
 
 static void fbuffer_inc_capa(FBuffer *fb, unsigned long requested)
 {
-    unsigned long required;
-
-    if (!fb->ptr) {
-        fb->ptr = ALLOC_N(char, fb->initial_length);
+    if (!RTEST(fb->str)) {
+        RB_OBJ_WRITE(fb->owner, &fb->str, rb_str_buf_new(fb->initial_length));
+        rb_enc_associate_index(fb->str, rb_utf8_encindex());
         fb->capa = fb->initial_length;
     }
 
-    for (required = fb->capa; requested > required - fb->len; required <<= 1);
-
-    if (required > fb->capa) {
-        REALLOC_N(fb->ptr, char, required);
-        fb->capa = required;
+    if (fb->capa - fb->len < requested) {
+        rb_str_set_len(fb->str, fb->len);
+        rb_str_modify_expand(fb->str, requested);
+        fb->capa = rb_str_capacity(fb->str);
     }
 }
 
@@ -112,7 +119,7 @@ static void fbuffer_append(FBuffer *fb, const char *newstr, unsigned long len)
 {
     if (len > 0) {
         fbuffer_inc_capa(fb, len);
-        MEMCPY(fb->ptr + fb->len, newstr, char, len);
+        MEMCPY(FBUFFER_PTR(fb) + fb->len, newstr, char, len);
         fb->len += len;
     }
 }
@@ -132,7 +139,7 @@ static void fbuffer_append_str(FBuffer *fb, VALUE str)
 static void fbuffer_append_char(FBuffer *fb, char newchr)
 {
     fbuffer_inc_capa(fb, 1);
-    *(fb->ptr + fb->len) = newchr;
+    *(FBUFFER_PTR(fb) + fb->len) = newchr;
     fb->len++;
 }
 
@@ -166,21 +173,24 @@ static void fbuffer_append_long(FBuffer *fb, long number)
     fbuffer_append(fb, buf, len);
 }
 
-static FBuffer *fbuffer_dup(FBuffer *fb)
+static FBuffer *fbuffer_dup(VALUE owner, FBuffer *fb)
 {
     unsigned long len = fb->len;
     FBuffer *result;
 
-    result = fbuffer_alloc(len);
+    result = fbuffer_alloc(owner, len);
     fbuffer_append(result, FBUFFER_PAIR(fb));
     return result;
 }
 
 static VALUE fbuffer_to_s(FBuffer *fb)
 {
-    VALUE result = rb_str_new(FBUFFER_PTR(fb), FBUFFER_LEN(fb));
-    fbuffer_free(fb);
-    FORCE_UTF8(result);
+    VALUE result = fb->str;
+    rb_str_set_len(fb->str, fb->len);
+    if (fb->len > fb->capa / 2) rb_str_resize(fb->str, fb->len);
+    RB_OBJ_WRITE(fb->owner, &fb->str, Qfalse);
+    fb->capa = 0;
+    fb->len = 0;
     return result;
 }
 #endif

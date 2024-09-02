@@ -66,6 +66,7 @@ typedef struct JSON_Generator_StateStruct {
     long object_nl_len;
     char *array_nl;
     long array_nl_len;
+    FBuffer *buffer;
     FBuffer *array_delim;
     FBuffer *object_delim;
     FBuffer *object_delim2;
@@ -86,16 +87,15 @@ typedef struct JSON_Generator_StateStruct {
     GET_STATE_TO(self, state)
 
 #define GENERATE_JSON(type)                                                                     \
-    FBuffer *buffer;                                                                            \
     VALUE Vstate;                                                                               \
     JSON_Generator_State *state;                                                                \
                                                                                                 \
     rb_scan_args(argc, argv, "01", &Vstate);                                                    \
     Vstate = cState_from_state_s(cState, Vstate);                                               \
     TypedData_Get_Struct(Vstate, JSON_Generator_State, &JSON_Generator_State_type, state);	\
-    buffer = cState_prepare_buffer(Vstate);                                                     \
-    generate_json_##type(buffer, Vstate, state, self);                                          \
-    return fbuffer_to_s(buffer)
+    cState_prepare_buffer(Vstate);                                                     \
+    generate_json_##type(state->buffer, Vstate, state, self);                                          \
+    return fbuffer_to_s(state->buffer)
 
 static VALUE mHash_to_json(int argc, VALUE *argv, VALUE self);
 static VALUE mArray_to_json(int argc, VALUE *argv, VALUE self);
@@ -156,7 +156,7 @@ static VALUE cState_script_safe(VALUE self);
 static VALUE cState_script_safe_set(VALUE self, VALUE depth);
 static VALUE cState_strict(VALUE self);
 static VALUE cState_strict_set(VALUE self, VALUE strict);
-static FBuffer *cState_prepare_buffer(VALUE self);
+static void cState_prepare_buffer(VALUE self);
 #ifndef ZALLOC
 #define ZALLOC(type) ((type *)ruby_zalloc(sizeof(type)))
 static inline void *ruby_zalloc(size_t n)

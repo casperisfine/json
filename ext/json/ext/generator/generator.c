@@ -602,6 +602,14 @@ static VALUE mObject_to_json(int argc, VALUE *argv, VALUE self)
     return cState_partial_generate(state, string);
 }
 
+static void State_mark(void *ptr)
+{
+    JSON_Generator_State *state = ptr;
+    if (state->array_delim) fbuffer_mark(state->array_delim);
+    if (state->object_delim) fbuffer_mark(state->object_delim);
+    if (state->object_delim2) fbuffer_mark(state->object_delim2);
+}
+
 static void State_free(void *ptr)
 {
     JSON_Generator_State *state = ptr;
@@ -638,7 +646,7 @@ static size_t State_memsize(const void *ptr)
 
 static const rb_data_type_t JSON_Generator_State_type = {
     "JSON/Generator/State",
-    {NULL, State_free, State_memsize,},
+    {State_mark, State_free, State_memsize,},
     0, 0,
     RUBY_TYPED_WB_PROTECTED | RUBY_TYPED_FREE_IMMEDIATELY | RUBY_TYPED_FROZEN_SHAREABLE,
 };
@@ -1057,22 +1065,25 @@ static void generate_json(FBuffer *buffer, VALUE Vstate, JSON_Generator_State *s
     }
 }
 
-static FBuffer *cState_prepare_buffer(VALUE self)
+static void cState_prepare_buffer(VALUE self)
 {
-    FBuffer *buffer;
     GET_STATE(self);
-    buffer = fbuffer_alloc(state->buffer_initial_length);
 
+    if (state->buffer) {
+        fbuffer_clear(state->buffer);
+    } else {
+        state->buffer = fbuffer_alloc(self, state->buffer_initial_length);
+    }
     if (state->object_delim) {
         fbuffer_clear(state->object_delim);
     } else {
-        state->object_delim = fbuffer_alloc(16);
+        state->object_delim = fbuffer_alloc(self, 16);
     }
     fbuffer_append_char(state->object_delim, ',');
     if (state->object_delim2) {
         fbuffer_clear(state->object_delim2);
     } else {
-        state->object_delim2 = fbuffer_alloc(16);
+        state->object_delim2 = fbuffer_alloc(self, 16);
     }
     if (state->space_before) fbuffer_append(state->object_delim2, state->space_before, state->space_before_len);
     fbuffer_append_char(state->object_delim2, ':');
@@ -1081,53 +1092,20 @@ static FBuffer *cState_prepare_buffer(VALUE self)
     if (state->array_delim) {
         fbuffer_clear(state->array_delim);
     } else {
-        state->array_delim = fbuffer_alloc(16);
+        state->array_delim = fbuffer_alloc(self, 16);
     }
     fbuffer_append_char(state->array_delim, ',');
     if (state->array_nl) fbuffer_append(state->array_delim, state->array_nl, state->array_nl_len);
-    return buffer;
-}
-
-struct generate_json_data {
-    FBuffer *buffer;
-    VALUE vstate;
-    JSON_Generator_State *state;
-    VALUE obj;
-};
-
-static VALUE generate_json_try(VALUE d)
-{
-    struct generate_json_data *data = (struct generate_json_data *)d;
-
-    generate_json(data->buffer, data->vstate, data->state, data->obj);
-
-    return Qnil;
-}
-
-static VALUE generate_json_rescue(VALUE d, VALUE exc)
-{
-    struct generate_json_data *data = (struct generate_json_data *)d;
-    fbuffer_free(data->buffer);
-
-    rb_exc_raise(exc);
-
-    return Qundef;
 }
 
 static VALUE cState_partial_generate(VALUE self, VALUE obj)
 {
-    FBuffer *buffer = cState_prepare_buffer(self);
     GET_STATE(self);
 
-    struct generate_json_data data = {
-        .buffer = buffer,
-        .vstate = self,
-        .state = state,
-        .obj = obj
-    };
-    rb_rescue(generate_json_try, (VALUE)&data, generate_json_rescue, (VALUE)&data);
+    cState_prepare_buffer(self);
+    generate_json(state->buffer, self, state, obj);
 
-    return fbuffer_to_s(buffer);
+    return fbuffer_to_s(state->buffer);
 }
 
 /*
@@ -1197,9 +1175,9 @@ static VALUE cState_init_copy(VALUE obj, VALUE orig)
     objState->space_before = fstrndup(origState->space_before, origState->space_before_len);
     objState->object_nl = fstrndup(origState->object_nl, origState->object_nl_len);
     objState->array_nl = fstrndup(origState->array_nl, origState->array_nl_len);
-    if (origState->array_delim) objState->array_delim = fbuffer_dup(origState->array_delim);
-    if (origState->object_delim) objState->object_delim = fbuffer_dup(origState->object_delim);
-    if (origState->object_delim2) objState->object_delim2 = fbuffer_dup(origState->object_delim2);
+    if (origState->array_delim) objState->array_delim = fbuffer_dup(obj, origState->array_delim);
+    if (origState->object_delim) objState->object_delim = fbuffer_dup(obj, origState->object_delim);
+    if (origState->object_delim2) objState->object_delim2 = fbuffer_dup(obj, origState->object_delim2);
     return obj;
 }
 

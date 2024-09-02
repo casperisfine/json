@@ -599,7 +599,7 @@ static VALUE mObject_to_json(int argc, VALUE *argv, VALUE self)
     rb_scan_args(argc, argv, "01", &state);
     Check_Type(string, T_STRING);
     state = cState_from_state_s(cState, state);
-    return cState_partial_generate(state, string);
+    return cState_generate(state, string);
 }
 
 static void State_mark(void *ptr)
@@ -1055,7 +1055,7 @@ static void generate_json(FBuffer *buffer, VALUE Vstate, JSON_Generator_State *s
     } else if (state->strict) {
         rb_raise(eGeneratorError, "%"PRIsVALUE" not allowed in JSON", RB_OBJ_STRING(CLASS_OF(obj)));
     } else if (rb_respond_to(obj, i_to_json)) {
-        tmp = rb_funcall(obj, i_to_json, 1, Vstate);
+        tmp = rb_funcall(obj, i_to_json, 1, rb_obj_dup(Vstate));
         Check_Type(tmp, T_STRING);
         fbuffer_append_str(buffer, tmp);
     } else {
@@ -1070,7 +1070,7 @@ static void cState_prepare_buffer(VALUE self)
     GET_STATE(self);
 
     if (state->buffer) {
-        /* fbuffer_clear(state->buffer); */
+        fbuffer_clear(state->buffer);
     } else {
         state->buffer = fbuffer_alloc(self, state->buffer_initial_length);
     }
@@ -1098,16 +1098,6 @@ static void cState_prepare_buffer(VALUE self)
     if (state->array_nl) fbuffer_append(state->array_delim, state->array_nl, state->array_nl_len);
 }
 
-static VALUE cState_partial_generate(VALUE self, VALUE obj)
-{
-    GET_STATE(self);
-
-    cState_prepare_buffer(self);
-    generate_json(state->buffer, self, state, obj);
-
-    return fbuffer_to_s(state->buffer);
-}
-
 /*
  * call-seq: generate(obj)
  *
@@ -1117,10 +1107,10 @@ static VALUE cState_partial_generate(VALUE self, VALUE obj)
  */
 static VALUE cState_generate(VALUE self, VALUE obj)
 {
-    VALUE result = cState_partial_generate(self, obj);
+    cState_prepare_buffer(self);
     GET_STATE(self);
-    (void)state;
-    return result;
+    generate_json(state->buffer, self, state, obj);
+    return fbuffer_to_s(state->buffer);
 }
 
 /*
@@ -1175,6 +1165,7 @@ static VALUE cState_init_copy(VALUE obj, VALUE orig)
     objState->space_before = fstrndup(origState->space_before, origState->space_before_len);
     objState->object_nl = fstrndup(origState->object_nl, origState->object_nl_len);
     objState->array_nl = fstrndup(origState->array_nl, origState->array_nl_len);
+    objState->buffer = NULL;
     if (origState->array_delim) objState->array_delim = fbuffer_dup(obj, origState->array_delim);
     if (origState->object_delim) objState->object_delim = fbuffer_dup(obj, origState->object_delim);
     if (origState->object_delim2) objState->object_delim2 = fbuffer_dup(obj, origState->object_delim2);

@@ -97,7 +97,6 @@ static void fbuffer_free(FBuffer *fb)
 static void fbuffer_clear(FBuffer *fb)
 {
     if (RTEST(fb->str)) rb_str_set_len(fb->str, 0);
-    fprintf(stderr, "clear\n");
     fb->len = 0;
 }
 
@@ -121,7 +120,6 @@ static void fbuffer_append(FBuffer *fb, const char *newstr, unsigned long len)
     if (len > 0) {
         fbuffer_inc_capa(fb, len);
         *(FBUFFER_PTR(fb) + fb->len) = '\0';
-        fprintf(stderr, "%ld %s\n", fb->len, FBUFFER_PTR(fb));
         MEMCPY(FBUFFER_PTR(fb) + fb->len, newstr, char, len);
         fb->len += len;
     }

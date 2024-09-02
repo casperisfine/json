@@ -1070,7 +1070,7 @@ static void cState_prepare_buffer(VALUE self)
     GET_STATE(self);
 
     if (state->buffer) {
-        fbuffer_clear(state->buffer);
+        /* fbuffer_clear(state->buffer); */
     } else {
         state->buffer = fbuffer_alloc(self, state->buffer_initial_length);
     }

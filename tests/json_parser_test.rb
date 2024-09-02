@@ -479,6 +479,7 @@ EOT
   def test_generate_of_core_subclasses
     obj = SubHash["foo" => SubHash["bar" => true]]
     obj_json = JSON(obj)
+    puts obj_json
     obj_again = JSON(obj_json)
     assert_kind_of Hash, obj_again
     assert_kind_of Hash, obj_again['foo']

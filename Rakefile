@@ -59,11 +59,11 @@ file EXT_PARSER_SRC => RAGEL_PATH do
 end
 
 require 'rake/javaextensiontask'
-Rake::JavaExtensionTask.new("TDOD") do |ext|
+Rake::JavaExtensionTask.new("json/ext") do |ext|
   ext.source_version = '1.8'
   ext.target_version = '1.8'
   ext.ext_dir = 'ext/java'
-  ext.lib_dir = 'lib/cgi'
+  ext.lib_dir = 'lib/json/ext'
 
   task :build => :compile
 end

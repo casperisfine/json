@@ -58,16 +58,6 @@ file EXT_PARSER_SRC => RAGEL_PATH do
   end
 end
 
-require 'rake/javaextensiontask'
-Rake::JavaExtensionTask.new("TDOD") do |ext|
-  ext.source_version = '1.8'
-  ext.target_version = '1.8'
-  ext.ext_dir = 'ext/java'
-  ext.lib_dir = 'lib/cgi'
-
-  task :build => :compile
-end
-
 if RUBY_ENGINE == 'ruby'
   require 'rake/extensiontask'
 
@@ -118,7 +108,7 @@ elsif RUBY_ENGINE == 'jruby'
   end
 
   desc "Compiling jruby extension"
-  task :compile => [:ragel] + JAVA_CLASSES
+  task :compile => [JAVA_PARSER_SRC] + JAVA_CLASSES
 
   desc "Package the jruby gem"
   task :jruby_gem => :create_jar do
@@ -128,8 +118,7 @@ elsif RUBY_ENGINE == 'jruby'
   end
 
   desc "Testing library (jruby)"
-  task :test_ext => [ :set_env_ext, :create_jar, :check_env, :do_test_ext ]
-  task(:set_env_ext) { ENV['JSON'] = 'ext' }
+  task :"test:ext" => :create_jar
 
   file JRUBY_PARSER_JAR => :compile do
     cd 'java/src' do

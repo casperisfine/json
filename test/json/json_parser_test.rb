@@ -511,6 +511,9 @@ EOT
     error = assert_raise(JSON::ParserError) do
       JSON.parse('{"foo": ' + ('A' * 500) + '}')
     end
+    puts '-' * 40
+    puts error.message
+    puts '-' * 40
     assert_operator 60, :>, error.message.bytesize
   end
 

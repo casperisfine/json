@@ -946,9 +946,24 @@ static VALUE generate_json_rescue(VALUE d, VALUE exc)
     return Qundef;
 }
 
+struct StackFBuffer {
+    FBuffer fbuffer;
+    char stack_buffer[FBUFFER_INITIAL_LENGTH_DEFAULT - sizeof(FBuffer)];
+};
+
 static VALUE cState_partial_generate(VALUE self, VALUE obj)
 {
-    FBuffer *buffer = cState_prepare_buffer(self);
+    struct StackFBuffer stack_buffer;
+    FBuffer *buffer = &stack_buffer.fbuffer;
+    // FBuffer *buffer = alloca(FBUFFER_INITIAL_LENGTH_DEFAULT); // alloca cause crashes?
+    buffer->on_stack = TRUE;
+    buffer->spilled = FALSE;
+    buffer->initial_length = buffer->capa = (FBUFFER_INITIAL_LENGTH_DEFAULT - sizeof(FBuffer));
+    buffer->len = 0;
+    buffer->ptr = stack_buffer.stack_buffer;
+
+    // fprintf(stderr, "alloca(%ld)\n", FBUFFER_INITIAL_LENGTH_DEFAULT);
+    // FBuffer *buffer = cState_prepare_buffer(self);
     GET_STATE(self);
 
     struct generate_json_data data = {

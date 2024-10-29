@@ -9,6 +9,8 @@ typedef struct FBufferStruct {
     char *ptr;
     unsigned long len;
     unsigned long capa;
+    char on_stack;
+    char spilled;
 } FBuffer;
 
 #define FBUFFER_INITIAL_LENGTH_DEFAULT 1024
@@ -43,13 +45,14 @@ static FBuffer *fbuffer_alloc(unsigned long initial_length)
     fb = ALLOC(FBuffer);
     memset((void *) fb, 0, sizeof(FBuffer));
     fb->initial_length = initial_length;
+    fb->spilled = TRUE;
     return fb;
 }
 
 static void fbuffer_free(FBuffer *fb)
 {
-    if (fb->ptr) ruby_xfree(fb->ptr);
-    ruby_xfree(fb);
+    if (fb->ptr && fb->spilled) ruby_xfree(fb->ptr);
+    if (!fb->on_stack) ruby_xfree(fb);
 }
 
 #ifndef JSON_GENERATOR
@@ -72,7 +75,14 @@ static inline void fbuffer_inc_capa(FBuffer *fb, unsigned long requested)
         for (required = fb->capa; requested > required - fb->len; required <<= 1);
 
         if (required > fb->capa) {
-            REALLOC_N(fb->ptr, char, required);
+            if (fb->spilled) {
+                REALLOC_N(fb->ptr, char, required);
+            } else {
+                const char *old_buffer = fb->ptr;
+                fb->ptr = ALLOC_N(char, required);
+                fb->spilled = true;
+                MEMCPY(fb->ptr, old_buffer, char, fb->len);
+            }
             fb->capa = required;
         }
     }

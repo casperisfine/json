@@ -37,7 +37,7 @@ RAGEL_PATH        = "#{EXT_PARSER_DIR}/parser.rl"
 EXT_PARSER_SRC    = "#{EXT_PARSER_DIR}/parser.c"
 EXT_GENERATOR_DIR = "#{EXT_ROOT_DIR}/generator"
 EXT_GENERATOR_DL  = "#{EXT_GENERATOR_DIR}/generator.#{CONFIG['DLEXT']}"
-EXT_GENERATOR_SRC = "#{EXT_GENERATOR_DIR}/generator.c"
+EXT_GENERATOR_SRC = ["#{EXT_GENERATOR_DIR}/generator.c", "#{EXT_GENERATOR_DIR}/generator.h", "#{EXT_ROOT_DIR}/fbuffer/fbuffer.h"]
 
 JAVA_DIR            = "java/src/json/ext"
 JAVA_RAGEL_PATH     = "#{JAVA_DIR}/Parser.rl"
